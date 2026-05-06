@@ -31,7 +31,7 @@ if is_mobile:
     </div>
     """, unsafe_allow_html=True)
 
-st.title("One-Day Batting Dashboard")
+st.title("The Hundred Batting Dashboard")
 
 def apply_responsive_legend(fig):
     if is_mobile:
