@@ -274,7 +274,7 @@ selected_levels = st.sidebar.multiselect(
 
 teams = sorted(data['Batting Team'].dropna().unique())
 
-default_team = "Glamorgan Women" if "Glamorgan Women" in teams else teams[0]
+default_team = "Trent Rockets Women" if "Trent Rockets Women" in teams else teams[0]
 
 selected_teams = st.sidebar.multiselect(
     "Batting Team",
