@@ -80,14 +80,14 @@ def load_data():
     df['Bowling Type'] = df['Bowler Type'].map(bowling_type_mapping)
 
     def categorize_over(over):
-        if 1 <= over <= 10:
-            return 'Powerplay (1-10)'
-        elif 11 <= over <= 25:
-            return 'Upper Middle (11-25)'
-        elif 26 <= over <= 40:
-            return 'Lower Middle (26-40)'
-        elif 41 <= over <= 50:
-            return 'Death (41-50)'
+        if 1 <= over <= 5:
+            return 'Powerplay (1-5)'
+        elif 6 <= over <= 10:
+            return 'Upper Middle (6-10)'
+        elif 11 <= over <= 15:
+            return 'Lower Middle (11-15)'
+        elif 16 <= over <= 20:
+            return 'Death (16-20)'
         else:
             return None
 
@@ -357,10 +357,10 @@ selected_years = st.sidebar.multiselect(
 # ---------------------------------------------------
 
 phases = [
-    "Powerplay (1-10)",
-    "Upper Middle (11-25)",
-    "Lower Middle (26-40)",
-    "Death (41-50)"
+    "Powerplay (1-5)",
+    "Upper Middle (6-10)",
+    "Lower Middle (11-15)",
+    "Death (16-20)"
 ]
 
 selected_phases = st.sidebar.multiselect(
@@ -446,10 +446,10 @@ else:
         )
 
         phases = [
-            'Powerplay (1-10)',
-            'Upper Middle (11-25)',
-            'Lower Middle (26-40)',
-            'Death (41-50)'
+            'Powerplay (1-5)',
+            'Upper Middle (6-10)',
+            'Lower Middle (11-15)',
+            'Death (16-20)'
         ]
 
         phase_data_store = []
@@ -616,10 +616,10 @@ else:
         )
 
         phases = [
-            'Powerplay (1-10)',
-            'Upper Middle (11-25)',
-            'Lower Middle (26-40)',
-            'Death (41-50)'
+            'Powerplay (1-5)',
+            'Upper Middle (6-10)',
+            'Lower Middle (11-15)',
+            'Death (16-20)'
         ]
 
         phase_data_store = []
