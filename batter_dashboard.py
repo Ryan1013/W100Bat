@@ -1207,9 +1207,73 @@ else:
 
 st.subheader("Beehive")
 
+# -------------------------------------------------
+# Learn Scale Conversion Between Both Coordinate Sets
+# -------------------------------------------------
+
+scale_df = filtered.dropna(
+    subset=[
+        'ArrivalX',
+        'ArrivalY',
+        'Analyst Arrival Line',
+        'Analyst Arrival Height'
+    ]
+)
+
+# Default fallback = analyst coordinates
+filtered['Final Arrival Line'] = filtered['Analyst Arrival Line']
+filtered['Final Arrival Height'] = filtered['Analyst Arrival Height']
+
+# If overlapping rows exist, learn conversion
+if len(scale_df) > 10:
+
+    # Learn mapping:
+    # ArrivalX -> Analyst Arrival Line
+    line_m, line_c = np.polyfit(
+        scale_df['ArrivalX'],
+        scale_df['Analyst Arrival Line'],
+        1
+    )
+
+    # Learn mapping:
+    # ArrivalY -> Analyst Arrival Height
+    height_m, height_c = np.polyfit(
+        scale_df['ArrivalY'],
+        scale_df['Analyst Arrival Height'],
+        1
+    )
+
+    # Convert ArrivalX/Y onto analyst scale
+    converted_line = (
+        filtered['ArrivalX'] * line_m + line_c
+    )
+
+    converted_height = (
+        filtered['ArrivalY'] * height_m + height_c
+    )
+
+    # PRIORITISE ArrivalX/Y IF PRESENT
+    # otherwise use Analyst values
+
+    filtered['Final Arrival Line'] = np.where(
+        filtered['ArrivalX'].notna(),
+        converted_line,
+        filtered['Analyst Arrival Line']
+    )
+
+    filtered['Final Arrival Height'] = np.where(
+        filtered['ArrivalY'].notna(),
+        converted_height,
+        filtered['Analyst Arrival Height']
+    )
+
+# -----------------------------
+# Prepare Beehive Data
+# -----------------------------
+
 beehive_data = filtered[
-    filtered['Analyst Arrival Line'].notna() &
-    filtered['Analyst Arrival Height'].notna()
+    filtered['Final Arrival Line'].notna() &
+    filtered['Final Arrival Height'].notna()
 ].copy()
 
 if len(beehive_data) > 0:
@@ -1237,52 +1301,89 @@ if len(beehive_data) > 0:
         )
     )
 
+    # ---------------- 4 Runs ---------------- #
+
     if "4 Runs" in beehive_options:
-        fig.add_trace(go.Scatter(
-            x=beehive_data[beehive_data['Runs'] == 4]['Analyst Arrival Line'],
-            y=beehive_data[beehive_data['Runs'] == 4]['Analyst Arrival Height'],
-            mode="markers",
-            marker=dict(size=9, color="green",
-                        line=dict(width=1, color="black")),
-            name="4 Runs"
-        ))
+
+        four_data = beehive_data[
+            beehive_data['Runs'] == 4
+        ]
+
+        fig.add_trace(
+            go.Scatter(
+                x=four_data['Final Arrival Line'],
+                y=four_data['Final Arrival Height'],
+                mode="markers",
+                marker=dict(
+                    size=9,
+                    color="green",
+                    line=dict(width=1, color="black")
+                ),
+                name="4 Runs"
+            )
+        )
+
+    # ---------------- 6 Runs ---------------- #
 
     if "6 Runs" in beehive_options:
-        fig.add_trace(go.Scatter(
-            x=beehive_data[beehive_data['Runs'] == 6]['Analyst Arrival Line'],
-            y=beehive_data[beehive_data['Runs'] == 6]['Analyst Arrival Height'],
-            mode="markers",
-            marker=dict(size=11, color="red",
-                        line=dict(width=1, color="black")),
-            name="6 Runs"
-        ))
+
+        six_data = beehive_data[
+            beehive_data['Runs'] == 6
+        ]
+
+        fig.add_trace(
+            go.Scatter(
+                x=six_data['Final Arrival Line'],
+                y=six_data['Final Arrival Height'],
+                mode="markers",
+                marker=dict(
+                    size=11,
+                    color="red",
+                    line=dict(width=1, color="black")
+                ),
+                name="6 Runs"
+            )
+        )
+
+    # ---------------- Dismissals ---------------- #
 
     if "Dismissals" in beehive_options:
-        fig.add_trace(go.Scatter(
-            x=beehive_data[
-                beehive_data['Dismissed Batter'].isin(selected_batters)
-            ]['Analyst Arrival Line'],
-            y=beehive_data[
-                beehive_data['Dismissed Batter'].isin(selected_batters)
-            ]['Analyst Arrival Height'],
-            mode="markers",
-            marker=dict(
-                symbol="x",
-                size=14,
-                color="black",
-                line=dict(width=2)
-            ),
-            name="Dismissal"
-        ))
+
+        dismissal_data = beehive_data[
+            beehive_data['Dismissed Batter'].isin(selected_batters)
+        ]
+
+        fig.add_trace(
+            go.Scatter(
+                x=dismissal_data['Final Arrival Line'],
+                y=dismissal_data['Final Arrival Height'],
+                mode="markers",
+                marker=dict(
+                    symbol="x",
+                    size=14,
+                    color="black",
+                    line=dict(width=2)
+                ),
+                name="Dismissal"
+            )
+        )
+
+    # ---------------- Layout ---------------- #
 
     fig.update_layout(
         height=700,
-        xaxis=dict(range=[x_min_m, x_max_m], visible=False),
-        yaxis=dict(range=[y_min_m, y_max_m], visible=False),
+        xaxis=dict(
+            range=[x_min_m, x_max_m],
+            visible=False
+        ),
+        yaxis=dict(
+            range=[y_min_m, y_max_m],
+            visible=False
+        ),
+        dragmode=False
     )
 
     fig.update_yaxes(scaleanchor="x")
-    fig.update_layout(dragmode=False)
 
     apply_responsive_legend(fig)
 
