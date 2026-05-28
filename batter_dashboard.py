@@ -1204,162 +1204,63 @@ if len(caught) > 0:
 else:
     st.write("No caught dismissals.")
 
-# ---------------- BEEHIVE ---------------- #
+# -------------------------------------------------
+# BEEHIVE
+# -------------------------------------------------
 
 st.subheader("Beehive")
 
 # -------------------------------------------------
-# Learn Scale Conversion Between Both Coordinate Sets
+# FINAL ARRIVAL COORDINATES
+# -------------------------------------------------
+# PRIORITY:
+#
+# 1. ImpactY / ImpactZ (machine tracked)
+# 2. Analyst Arrival Line / Height (fallback)
+#
+# These are already on very similar cricket-space
+# scales, so no transformation is required.
 # -------------------------------------------------
 
-scale_df = filtered.dropna(
-    subset=[
-        'ArrivalX',
-        'ArrivalY',
-        'Analyst Arrival Line',
-        'Analyst Arrival Height'
-    ]
-).copy()
-
-# -------------------------------------------------
-# REMOVE EXTREME OUTLIERS
-# -------------------------------------------------
-
-if len(scale_df) > 10:
-
-    x_low = scale_df['ArrivalX'].quantile(0.05)
-    x_high = scale_df['ArrivalX'].quantile(0.95)
-
-    y_low = scale_df['ArrivalY'].quantile(0.05)
-    y_high = scale_df['ArrivalY'].quantile(0.95)
-
-    scale_df = scale_df[
-        scale_df['ArrivalX'].between(x_low, x_high)
-    ]
-
-    scale_df = scale_df[
-        scale_df['ArrivalY'].between(y_low, y_high)
-    ]
-
-# -------------------------------------------------
-# Default fallback = analyst coordinates
-# -------------------------------------------------
-
-filtered['Final Arrival Line'] = filtered['Analyst Arrival Line']
-filtered['Final Arrival Height'] = filtered['Analyst Arrival Height']
-
-# -------------------------------------------------
-# If overlapping rows exist, learn conversion
-# -------------------------------------------------
-
-if len(scale_df) > 10:
-
-    # Learn mapping:
-    # Analyst -> Tracking space
-
-    line_m, line_c = np.polyfit(
-        scale_df['Analyst Arrival Line'],
-        scale_df['ArrivalX'],
-        1
-    )
-
-    height_m, height_c = np.polyfit(
-        scale_df['Analyst Arrival Height'],
-        scale_df['ArrivalY'],
-        1
-    )
-
-    # -------------------------------------------------
-    # Convert analyst coords INTO tracking space
-    # -------------------------------------------------
-
-    converted_x = (
-        filtered['Analyst Arrival Line']
-        * line_m + line_c
-    )
-
-    converted_y = (
-        filtered['Analyst Arrival Height']
-        * height_m + height_c
-    )
-
-    # -------------------------------------------------
-    # PRIORITISE TRACKING VALUES
-    # -------------------------------------------------
-
-    filtered['FinalX'] = np.where(
-        filtered['ArrivalX'].notna(),
-        filtered['ArrivalX'],
-        converted_x
-    )
-
-    filtered['FinalY'] = np.where(
-        filtered['ArrivalY'].notna(),
-        filtered['ArrivalY'],
-        converted_y
-    )
-
-else:
-
-    filtered['FinalX'] = filtered['ArrivalX']
-    filtered['FinalY'] = filtered['ArrivalY']
-
-# -------------------------------------------------
-# NORMALISE INTO OLD VISUAL CRICKET SPACE
-# -------------------------------------------------
-
-x_min_m = -1.83
-x_max_m = 1.83
-
-y_min_m = 0
-y_max_m = 2.0
-
-# Ignore extreme plotting outliers
-raw_x_min = filtered['FinalX'].quantile(0.01)
-raw_x_max = filtered['FinalX'].quantile(0.99)
-
-raw_y_min = filtered['FinalY'].quantile(0.01)
-raw_y_max = filtered['FinalY'].quantile(0.99)
-
-# Scale X
-filtered['PlotX'] = (
-    (
-        (filtered['FinalX'] - raw_x_min)
-        / (raw_x_max - raw_x_min)
-    )
-    * (x_max_m - x_min_m)
-    + x_min_m
+filtered['Final Arrival Line'] = np.where(
+    filtered['ImpactY'].notna(),
+    filtered['ImpactY'],
+    filtered['Analyst Arrival Line']
 )
 
-# Scale Y
-filtered['PlotY'] = (
-    (
-        (filtered['FinalY'] - raw_y_min)
-        / (raw_y_max - raw_y_min)
-    )
-    * (y_max_m - y_min_m)
-    + y_min_m
+filtered['Final Arrival Height'] = np.where(
+    filtered['ImpactZ'].notna(),
+    filtered['ImpactZ'],
+    filtered['Analyst Arrival Height']
 )
 
-# Optional clipping
-filtered['PlotX'] = filtered['PlotX'].clip(
-    x_min_m,
-    x_max_m
+# -------------------------------------------------
+# OPTIONAL CLIPPING
+# Prevent extreme outlier plotting
+# -------------------------------------------------
+
+filtered['Final Arrival Line'] = (
+    filtered['Final Arrival Line']
+    .clip(-1.83, 1.83)
 )
 
-filtered['PlotY'] = filtered['PlotY'].clip(
-    y_min_m,
-    y_max_m
+filtered['Final Arrival Height'] = (
+    filtered['Final Arrival Height']
+    .clip(0, 2.0)
 )
 
-# -----------------------------
-# Prepare Beehive Data
-# -----------------------------
+# -------------------------------------------------
+# PREPARE BEEHIVE DATA
+# -------------------------------------------------
 
 beehive_data = filtered[
-    filtered['PlotX'].notna() &
-    filtered['PlotY'].notna()
+    filtered['Final Arrival Line'].notna() &
+    filtered['Final Arrival Height'].notna()
 ].copy()
+
+# -------------------------------------------------
+# PLOT
+# -------------------------------------------------
 
 if len(beehive_data) > 0:
 
@@ -1367,21 +1268,41 @@ if len(beehive_data) > 0:
 
     img = Image.open("beehive_background.jpg")
 
+    # -------------------------------------------------
+    # FIXED CRICKET DISPLAY SPACE
+    # -------------------------------------------------
+
+    x_min_m = -1.83
+    x_max_m = 1.83
+
+    y_min_m = 0
+    y_max_m = 2.0
+
+    # -------------------------------------------------
+    # BACKGROUND IMAGE
+    # -------------------------------------------------
+
     fig.add_layout_image(
         dict(
             source=img,
+
             xref="x",
             yref="y",
+
             x=x_min_m,
             y=y_max_m,
+
             sizex=(x_max_m - x_min_m),
             sizey=(y_max_m - y_min_m),
+
             sizing="stretch",
             layer="below"
         )
     )
 
-    # ---------------- 4 Runs ---------------- #
+    # -------------------------------------------------
+    # 4 RUNS
+    # -------------------------------------------------
 
     if "4 Runs" in beehive_options:
 
@@ -1391,19 +1312,28 @@ if len(beehive_data) > 0:
 
         fig.add_trace(
             go.Scatter(
-                x=four_data['PlotX'],
-                y=four_data['PlotY'],
+                x=four_data['Final Arrival Line'],
+                y=four_data['Final Arrival Height'],
+
                 mode="markers",
+
                 marker=dict(
                     size=9,
                     color="green",
-                    line=dict(width=1, color="black")
+
+                    line=dict(
+                        width=1,
+                        color="black"
+                    )
                 ),
+
                 name="4 Runs"
             )
         )
 
-    # ---------------- 6 Runs ---------------- #
+    # -------------------------------------------------
+    # 6 RUNS
+    # -------------------------------------------------
 
     if "6 Runs" in beehive_options:
 
@@ -1413,68 +1343,97 @@ if len(beehive_data) > 0:
 
         fig.add_trace(
             go.Scatter(
-                x=six_data['PlotX'],
-                y=six_data['PlotY'],
+                x=six_data['Final Arrival Line'],
+                y=six_data['Final Arrival Height'],
+
                 mode="markers",
+
                 marker=dict(
                     size=11,
                     color="red",
-                    line=dict(width=1, color="black")
+
+                    line=dict(
+                        width=1,
+                        color="black"
+                    )
                 ),
+
                 name="6 Runs"
             )
         )
 
-    # ---------------- Dismissals ---------------- #
+    # -------------------------------------------------
+    # DISMISSALS
+    # -------------------------------------------------
 
     if "Dismissals" in beehive_options:
 
         dismissal_data = beehive_data[
-            beehive_data['Dismissed Batter'].isin(selected_batters)
+            beehive_data['Dismissed Batter']
+            .isin(selected_batters)
         ]
 
         fig.add_trace(
             go.Scatter(
-                x=dismissal_data['PlotX'],
-                y=dismissal_data['PlotY'],
+                x=dismissal_data['Final Arrival Line'],
+                y=dismissal_data['Final Arrival Height'],
+
                 mode="markers",
+
                 marker=dict(
                     symbol="x",
                     size=14,
                     color="black",
+
                     line=dict(width=2)
                 ),
+
                 name="Dismissal"
             )
         )
 
-    # ---------------- Layout ---------------- #
+    # -------------------------------------------------
+    # LAYOUT
+    # -------------------------------------------------
 
     fig.update_layout(
         height=700,
+
         xaxis=dict(
             range=[x_min_m, x_max_m],
             visible=False
         ),
+
         yaxis=dict(
             range=[y_min_m, y_max_m],
             visible=False
         ),
+
         dragmode=False
     )
 
     fig.update_yaxes(scaleanchor="x")
 
+    # -------------------------------------------------
+    # LEGEND
+    # -------------------------------------------------
+
     apply_responsive_legend(fig)
+
+    # -------------------------------------------------
+    # STREAMLIT CHART
+    # -------------------------------------------------
 
     st.plotly_chart(
         fig,
         use_container_width=True,
         key="beehive",
+
         config={
             "scrollZoom": False,
             "doubleClick": "reset",
             "displaylogo": False,
+
             "modeBarButtonsToRemove": [
                 "zoom2d",
                 "select2d",
