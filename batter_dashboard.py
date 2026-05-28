@@ -1219,62 +1219,146 @@ scale_df = filtered.dropna(
         'Analyst Arrival Line',
         'Analyst Arrival Height'
     ]
-)
+).copy()
 
+# -------------------------------------------------
+# REMOVE EXTREME OUTLIERS
+# -------------------------------------------------
+
+if len(scale_df) > 10:
+
+    x_low = scale_df['ArrivalX'].quantile(0.05)
+    x_high = scale_df['ArrivalX'].quantile(0.95)
+
+    y_low = scale_df['ArrivalY'].quantile(0.05)
+    y_high = scale_df['ArrivalY'].quantile(0.95)
+
+    scale_df = scale_df[
+        scale_df['ArrivalX'].between(x_low, x_high)
+    ]
+
+    scale_df = scale_df[
+        scale_df['ArrivalY'].between(y_low, y_high)
+    ]
+
+# -------------------------------------------------
 # Default fallback = analyst coordinates
+# -------------------------------------------------
+
 filtered['Final Arrival Line'] = filtered['Analyst Arrival Line']
 filtered['Final Arrival Height'] = filtered['Analyst Arrival Height']
 
+# -------------------------------------------------
 # If overlapping rows exist, learn conversion
+# -------------------------------------------------
+
 if len(scale_df) > 10:
 
     # Learn mapping:
-    # ArrivalX -> Analyst Arrival Line
+    # Analyst -> Tracking space
+
     line_m, line_c = np.polyfit(
-        scale_df['ArrivalX'],
         scale_df['Analyst Arrival Line'],
+        scale_df['ArrivalX'],
         1
     )
 
-    # Learn mapping:
-    # ArrivalY -> Analyst Arrival Height
     height_m, height_c = np.polyfit(
-        scale_df['ArrivalY'],
         scale_df['Analyst Arrival Height'],
+        scale_df['ArrivalY'],
         1
     )
 
-    # Convert ArrivalX/Y onto analyst scale
-    converted_line = (
-        filtered['ArrivalX'] * line_m + line_c
-    )
+    # -------------------------------------------------
+    # Convert analyst coords INTO tracking space
+    # -------------------------------------------------
 
-    converted_height = (
-        filtered['ArrivalY'] * height_m + height_c
-    )
-
-    # PRIORITISE ArrivalX/Y IF PRESENT
-    # otherwise use Analyst values
-
-    filtered['Final Arrival Line'] = np.where(
-        filtered['ArrivalX'].notna(),
-        converted_line,
+    converted_x = (
         filtered['Analyst Arrival Line']
+        * line_m + line_c
     )
 
-    filtered['Final Arrival Height'] = np.where(
-        filtered['ArrivalY'].notna(),
-        converted_height,
+    converted_y = (
         filtered['Analyst Arrival Height']
+        * height_m + height_c
     )
+
+    # -------------------------------------------------
+    # PRIORITISE TRACKING VALUES
+    # -------------------------------------------------
+
+    filtered['FinalX'] = np.where(
+        filtered['ArrivalX'].notna(),
+        filtered['ArrivalX'],
+        converted_x
+    )
+
+    filtered['FinalY'] = np.where(
+        filtered['ArrivalY'].notna(),
+        filtered['ArrivalY'],
+        converted_y
+    )
+
+else:
+
+    filtered['FinalX'] = filtered['ArrivalX']
+    filtered['FinalY'] = filtered['ArrivalY']
+
+# -------------------------------------------------
+# NORMALISE INTO OLD VISUAL CRICKET SPACE
+# -------------------------------------------------
+
+x_min_m = -1.83
+x_max_m = 1.83
+
+y_min_m = 0
+y_max_m = 2.0
+
+# Ignore extreme plotting outliers
+raw_x_min = filtered['FinalX'].quantile(0.01)
+raw_x_max = filtered['FinalX'].quantile(0.99)
+
+raw_y_min = filtered['FinalY'].quantile(0.01)
+raw_y_max = filtered['FinalY'].quantile(0.99)
+
+# Scale X
+filtered['PlotX'] = (
+    (
+        (filtered['FinalX'] - raw_x_min)
+        / (raw_x_max - raw_x_min)
+    )
+    * (x_max_m - x_min_m)
+    + x_min_m
+)
+
+# Scale Y
+filtered['PlotY'] = (
+    (
+        (filtered['FinalY'] - raw_y_min)
+        / (raw_y_max - raw_y_min)
+    )
+    * (y_max_m - y_min_m)
+    + y_min_m
+)
+
+# Optional clipping
+filtered['PlotX'] = filtered['PlotX'].clip(
+    x_min_m,
+    x_max_m
+)
+
+filtered['PlotY'] = filtered['PlotY'].clip(
+    y_min_m,
+    y_max_m
+)
 
 # -----------------------------
 # Prepare Beehive Data
 # -----------------------------
 
 beehive_data = filtered[
-    filtered['Final Arrival Line'].notna() &
-    filtered['Final Arrival Height'].notna()
+    filtered['PlotX'].notna() &
+    filtered['PlotY'].notna()
 ].copy()
 
 if len(beehive_data) > 0:
@@ -1282,11 +1366,6 @@ if len(beehive_data) > 0:
     fig = go.Figure()
 
     img = Image.open("beehive_background.jpg")
-
-    x_min_m = -1.83
-    x_max_m = 1.83
-    y_min_m = 0
-    y_max_m = 2.0
 
     fig.add_layout_image(
         dict(
@@ -1312,8 +1391,8 @@ if len(beehive_data) > 0:
 
         fig.add_trace(
             go.Scatter(
-                x=four_data['Final Arrival Line'],
-                y=four_data['Final Arrival Height'],
+                x=four_data['PlotX'],
+                y=four_data['PlotY'],
                 mode="markers",
                 marker=dict(
                     size=9,
@@ -1334,8 +1413,8 @@ if len(beehive_data) > 0:
 
         fig.add_trace(
             go.Scatter(
-                x=six_data['Final Arrival Line'],
-                y=six_data['Final Arrival Height'],
+                x=six_data['PlotX'],
+                y=six_data['PlotY'],
                 mode="markers",
                 marker=dict(
                     size=11,
@@ -1356,8 +1435,8 @@ if len(beehive_data) > 0:
 
         fig.add_trace(
             go.Scatter(
-                x=dismissal_data['Final Arrival Line'],
-                y=dismissal_data['Final Arrival Height'],
+                x=dismissal_data['PlotX'],
+                y=dismissal_data['PlotY'],
                 mode="markers",
                 marker=dict(
                     symbol="x",
